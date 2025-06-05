@@ -1,0 +1,291 @@
+version: '3.8'
+
+services:
+  # MQTT Broker
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: smart-hvac-mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./docker/mosquitto/config:/mosquitto/config
+      - ./docker/mosquitto/data:/mosquitto/data
+      - ./docker/mosquitto/log:/mosquitto/log
+    networks:
+      - hvac-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_pub -h localhost -t test -m 'health check' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Smart HVAC Application
+  smart-hvac:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smart-hvac-app
+    ports:
+      - "${FLASK_PORT:-5000}:5000"
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_DEBUG=${FLASK_DEBUG:-false}
+      - MQTT_BROKER=mosquitto
+      - MQTT_PORT=1883
+      - MQTT_USERNAME=${MQTT_USERNAME:-hvac_user}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-hvac_pass}
+      - DATABASE_URL=sqlite:///database/hvac_data.db
+      - SECRET_KEY=${SECRET_KEY:-hvac-secret-key-change-in-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./database:/app/database
+      - ./logs:/app/logs
+      - ./config:/app/config
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - hvac-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Virtual Sensors Simulator
+  sensor-simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile.sensors
+    container_name: smart-hvac-sensors
+    environment:
+      - MQTT_BROKER=mosquitto
+      - MQTT_PORT=1883
+      - MQTT_USERNAME=${MQTT_USERNAME:-hvac_user}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-hvac_pass}
+      - SENSOR_COUNT=${SENSOR_COUNT:-7}
+      - SIMULATION_SPEED=${SIMULATION_SPEED:-1}
+    volumes:
+      - ./sensors:/app/sensors
+      - ./config:/app/config
+      - ./logs:/app/logs
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - hvac-network
+    restart: unless-stopped
+
+  # Edge Processor
+  edge-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile.edge
+    container_name: smart-hvac-edge
+    environment:
+      - MQTT_BROKER=mosquitto
+      - MQTT_PORT=1883
+      - MQTT_USERNAME=${MQTT_USERNAME:-hvac_user}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-hvac_pass}
+      - DATABASE_URL=sqlite:///database/hvac_data.db
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./database:/app/database
+      - ./logs:/app/logs
+      - ./config:/app/config
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      smart-hvac:
+        condition: service_healthy
+    networks:
+      - hvac-network
+    restart: unless-stopped
+
+  # Database Admin (SQLite Browser)
+  sqlite-web:
+    image: coleifer/sqlite-web
+    container_name: smart-hvac-db-admin
+    ports:
+      - "${DB_ADMIN_PORT:-8080}:8080"
+    volumes:
+      - ./database:/data
+    command: sqlite-web -H 0.0.0.0 -x /data/hvac_data.db
+    networks:
+      - hvac-network
+    restart: unless-stopped
+    profiles:
+      - admin
+    depends_on:
+      - smart-hvac
+
+  # Grafana for Monitoring
+  grafana:
+    image: grafana/grafana:latest
+    container_name: smart-hvac-grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - hvac-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    user: "472"
+
+  # Prometheus for Metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: smart-hvac-prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./docker/prometheus/rules:/etc/prometheus/rules
+      - prometheus-storage:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - hvac-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # Node Exporter for System Metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: smart-hvac-node-exporter
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - hvac-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # Alert Manager for Prometheus
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: smart-hvac-alertmanager
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+      - ./docker/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager-storage:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    networks:
+      - hvac-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  # Redis for Caching (Optional)
+  redis:
+    image: redis:7-alpine
+    container_name: smart-hvac-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-storage:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-hvac_redis_pass}
+    networks:
+      - hvac-network
+    restart: unless-stopped
+    profiles:
+      - cache
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy (Optional)
+  nginx:
+    image: nginx:alpine
+    container_name: smart-hvac-nginx
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - smart-hvac
+      - grafana
+    networks:
+      - hvac-network
+    restart: unless-stopped
+    profiles:
+      - proxy
+
+  # Backup Service
+  backup:
+    image: alpine:latest
+    container_name: smart-hvac-backup
+    volumes:
+      - ./database:/source/database
+      - ./logs:/source/logs
+      - ./backups:/backups
+    command: >
+      sh -c "
+        apk add --no-cache tar gzip &&
+        while true; do
+          echo 'Starting backup...' &&
+          tar -czf /backups/hvac-backup-$$(date +%Y%m%d-%H%M%S).tar.gz -C /source . &&
+          echo 'Backup completed' &&
+          find /backups -name '*.tar.gz' -mtime +7 -delete &&
+          sleep 86400
+        done
+      "
+    networks:
+      - hvac-network
+    restart: unless-stopped
+    profiles:
+      - backup
+
+networks:
+  hvac-network:
+    driver: bridge
+    name: smart-hvac-network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  grafana-storage:
+    name: smart-hvac-grafana-data
+  prometheus-storage:
+    name: smart-hvac-prometheus-data
+  alertmanager-storage:
+    name: smart-hvac-alertmanager-data
+  redis-storage:
+    name: smart-hvac-redis-data

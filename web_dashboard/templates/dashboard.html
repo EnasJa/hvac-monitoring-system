@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart HVAC Monitoring System</title>
+    
+    <!-- CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #0a0e27;      /* Deep Blue */
+            --accent-color: #00d4ff;       /* Cyan */
+            --background-color: #1a1d3a;   /* Dark Blue-Grey */
+            
+            --gradient-primary: linear-gradient(135deg, var(--primary-color) 0%, var(--background-color) 100%);
+            --gradient-accent: linear-gradient(135deg, var(--accent-color) 0%, #0099cc 100%);
+            --gradient-card: linear-gradient(145deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%);
+            
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255,255,255,0.8);
+            --text-muted: rgba(255,255,255,0.6);
+            
+            --border-radius: 12px;
+            --shadow-sm: 0 2px 10px rgba(0,0,0,0.1);
+            --shadow-md: 0 8px 25px rgba(0,0,0,0.15);
+            --shadow-lg: 0 15px 35px rgba(0,0,0,0.2);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: var(--gradient-primary);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+        
+        /* Animated Background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 20%, rgba(0,212,255,0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(0,212,255,0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(10,14,39,0.3) 0%, transparent 50%);
+            animation: float 20s ease-in-out infinite;
+            z-index: -1;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            33% { transform: translateY(-20px) rotate(1deg); }
+            66% { transform: translateY(10px) rotate(-1deg); }
+        }
+        
+        /* Navigation */
+        .navbar {
+            background: rgba(10,14,39,0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(0,212,255,0.2);
+            padding: 1rem 0;
+        }
+        
+        .navbar-brand {
+            color: var(--text-primary) !important;
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+        
+        .nav-link {
+            color: var(--text-secondary) !important;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .nav-link:hover {
+            color: var(--accent-color) !important;
+            transform: translateY(-2px);
+        }
+        
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 3px;
+            background: var(--gradient-accent);
+            border-radius: 2px;
+        }
+        
+        /* Real-time Indicator */
+        .realtime-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--gradient-accent);
+            color: var(--primary-color);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            z-index: 1000;
+            box-shadow: var(--shadow-md);
+            animation: pulse 2s infinite;
+        }
+        
+        .realtime-indicator.disconnected {
+            background: linear-gradient(135deg, #ff4757, #ff3742);
+            color: white;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0,212,255,0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(0,212,255,0); }
+            100% { box-shadow: 0 0 0 0 rgba(0,212,255,0); }
+        }
+        
+        /* Main Container */
+        .dashboard-container {
+            padding: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        /* System Status */
+        .system-status {
+            background: var(--gradient-card);
+            border: 1px solid rgba(0,212,255,0.2);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            text-align: center;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .status-normal { border-color: #10ac84; box-shadow: 0 0 20px rgba(16,172,132,0.3); }
+        .status-warning { border-color: #ffb142; box-shadow: 0 0 20px rgba(255,177,66,0.3); }
+        .status-critical { border-color: #ff4757; box-shadow: 0 0 20px rgba(255,71,87,0.3); }
+        
+        /* Building Map */
+        .building-map {
+            background: var(--gradient-card);
+            border: 1px solid rgba(0,212,255,0.2);
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            position: relative;
+            height: 400px;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+        }
+        
+        .building-map::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                linear-gradient(90deg, rgba(0,212,255,0.1) 1px, transparent 1px),
+                linear-gradient(rgba(0,212,255,0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            opacity: 0.3;
+        }
+        
+        .sensor-marker {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: var(--gradient-accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-color);
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            transform: translate(-50%, -50%);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .sensor-marker:hover {
+            transform: translate(-50%, -50%) scale(1.2);
+            box-shadow: 0 0 30px rgba(0,212,255,0.6);
+        }
+        
+        /* Sensor Cards */
+        .sensor-card {
+            background: var(--gradient-card);
+            border: 1px solid rgba(0,212,255,0.2);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            margin-bottom: 1.5rem;
+        }
+        
+        .sensor-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--accent-color);
+        }
+        
+        .sensor-header {
+            background: var(--gradient-accent);
+            color: var(--primary-color);
+            padding: 1rem;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+        
+        .metric-item {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid rgba(0,212,255,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .metric-item:last-child {
+            border-bottom: none;
+        }
+        
+        .metric-item:hover {
+            background: rgba(0,212,255,0.05);
+        }
+        
+        .metric-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 1rem;
+            font-size: 1.2rem;
+            background: var(--gradient-accent);
+            color: var(--primary-color);
+        }
+        
+        .metric-info {
+            flex: 1;
+        }
+        
+        .metric-label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+        }
+        
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-normal { 
+            background: linear-gradient(135deg, #10ac84, #0abde3);
+            color: white;
+        }
+        .status-warning { 
+            background: linear-gradient(135deg, #ffb142, #ff9ff3);
+            color: var(--primary-color);
+        }
+        .status-critical { 
+            background: linear-gradient(135deg, #ff4757, #ff3742);
+            color: white;
+        }
+        .status-malfunction { 
+            background: linear-gradient(135deg, #2f1b14, #5f3928);
+            color: white;
+        }
+        
+        /* Charts */
+        .chart-container {
+            background: var(--gradient-card);
+            border: 1px solid rgba(0,212,255,0.2);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+        
+        .chart-title {
+            color: var(--text-primary);
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .chart-title i {
+            color: var(--accent-color);
+            margin-right: 0.5rem;
+        }
+        
+        /* Alerts */
+        .alert-card {
+            background: var(--gradient-card);
+            border-left: 4px solid;
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            margin-bottom: 1rem;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        
+        .alert-card:hover {
+            transform: translateX(5px);
+            box-shadow: var(--shadow-md);
+        }
+        
+        .alert-low { border-left-color: #10ac84; }
+        .alert-medium { border-left-color: #ffb142; }
+        .alert-high { border-left-color: #ff6348; }
+        .alert-critical { border-left-color: #ff4757; }
+        
+        /* Buttons */
+        .btn-smart {
+            background: var(--gradient-accent);
+            border: none;
+            color: var(--primary-color);
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius);
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn-smart:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            color: var(--primary-color);
+        }
+        
+        .btn-outline-smart {
+            background: transparent;
+            border: 2px solid var(--accent-color);
+            color: var(--accent-color);
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-outline-smart:hover {
+            background: var(--accent-color);
+            color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+        
+        /* Loading */
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            color: var(--accent-color);
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--primary-color);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--accent-color);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #0099cc;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .dashboard-container {
+                padding: 1rem;
+            }
+            
+            .sensor-marker {
+                width: 30px;
+                height: 30px;
+                font-size: 0.8rem;
+            }
+            
+            .metric-value {
+                font-size: 1.2rem;
+            }
+            
+            .building-map {
+                height: 300px;
+            }
+        }
+        
+        /* Animations */
+        .fade-in {
+            animation: fadeIn 0.6s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .slide-in {
+            animation: slideIn 0.8s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-50px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Real-time Connection Indicator -->
+    <div id="realtimeIndicator" class="realtime-indicator">
+        <i class="fas fa-circle me-2"></i>
+        Connecting...
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-microchip me-2"></i>
+                Smart HVAC Monitor
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/dashboard">
+                            <i class="fas fa-chart-line me-1"></i>
+                            Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/alerts">
+                            <i class="fas fa-bell me-1"></i>
+                            Alerts
+                            <span id="alertsCount" class="badge bg-danger ms-1">0</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="exportData()">
+                            <i class="fas fa-download me-1"></i>
+                            Export
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <!-- System Status -->
+        <div id="systemStatus" class="system-status fade-in">
+            <i class="fas fa-cog fa-spin me-2"></i>
+            Loading System Status...
+        </div>
+
+        <!-- Building Map -->
+        <div class="row fade-in">
+            <div class="col-12">
+                <h3 class="mb-3">
+                    <i class="fas fa-building me-2" style="color: var(--accent-color);"></i>
+                    Building Overview
+                </h3>
+                <div class="building-map" id="buildingMap">
+                    <!-- Sensors will be rendered here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Sensor Grid -->
+        <div class="row">
+            <div class="col-12">
+                <h3 class="mb-3">
+                    <i class="fas fa-thermometer-half me-2" style="color: var(--accent-color);"></i>
+                    Active Sensors
+                </h3>
+            </div>
+        </div>
+        
+        <div class="row" id="sensorsContainer">
+            <div class="col-12 text-center">
+                <div class="loading-spinner">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="row mt-4">
+            <div class="col-lg-6">
+                <div class="chart-container fade-in">
+                    <h4 class="chart-title">
+                        <i class="fas fa-chart-line"></i>
+                        Real-time Temperature
+                    </h4>
+                    <canvas id="temperatureChart"></canvas>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="chart-container fade-in">
+                    <h4 class="chart-title">
+                        <i class="fas fa-chart-area"></i>
+                        Humidity & CO₂
+                    </h4>
+                    <canvas id="humidityCoChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Alerts -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <h3 class="mb-3">
+                    <i class="fas fa-exclamation-triangle me-2" style="color: var(--accent-color);"></i>
+                    Recent Alerts
+                </h3>
+                <div id="alertsContainer" class="slide-in">
+                    <!-- Alerts will be rendered here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Global Variables
+        let socket;
+        let temperatureChart;
+        let humidityCoChart;
+        let sensorsData = {};
+        let isConnected = false;
+        
+        // Color Scheme
+        const colors = {
+            primary: '#0a0e27',
+            accent: '#00d4ff',
+            background: '#1a1d3a',
+            text: '#ffffff'
+        };
+        
+        // Sensor Colors (using accent variations)
+        const sensorColors = [
+            '#00d4ff', '#0099cc', '#66e0ff', '#33ccff',
+            '#009bff', '#4dd8ff', '#1ac6ff', '#80e8ff'
+        ];
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSocket();
+            initializeCharts();
+            loadInitialData();
+            addAnimations();
+        });
+        
+        // Add entrance animations
+        function addAnimations() {
+            const cards = document.querySelectorAll('.sensor-card, .chart-container');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(50px)';
+                
+                setTimeout(() => {
+                    card.style.transition = 'all 0.6s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 100);
+            });
+        }
+        
+        // Initialize Socket.IO
+        function initializeSocket() {
+            socket = io();
+            
+            socket.on('connect', function() {
+                isConnected = true;
+                updateConnectionStatus(true);
+                console.log('✅ Connected to server');
+            });
+            
+            socket.on('disconnect', function() {
+                isConnected = false;
+                updateConnectionStatus(false);
+                console.log('❌ Disconnected from server');
+            });
+            
+            socket.on('initial_data', function(data) {
+                console.log('📊 Initial data received', data);
+                renderSensors(data.sensors);
+                updateSystemStatus(data.system_status);
+                updateAlerts(data.alerts);
+            });
+            
+            socket.on('realtime_data', function(data) {
+                console.log('🔄 Real-time data', data);
+                updateSensorData(data);
+                updateCharts();
+            });
+            
+            socket.on('new_alert', function(alert) {
+                console.log('🚨 New alert', alert);
+                addNewAlert(alert);
+            });
+            
+            socket.on('system_status_update', function(status) {
+                updateSystemStatus(status.system_status.status);
+            });
+        }
+        
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('realtimeIndicator');
+            if (connected) {
+                indicator.className = 'realtime-indicator';
+                indicator.innerHTML = '<i class="fas fa-circle me-2"></i>Live Connection';
+            } else {
+                indicator.className = 'realtime-indicator disconnected';
+                indicator.innerHTML = '<i class="fas fa-circle me-2"></i>Disconnected';
+            }
+        }
+        
+        // Load initial data
+        function loadInitialData() {
+            fetch('/api/sensors')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        renderSensors(data.data);
+                        renderBuildingMap(data.data);
+                    }
+                })
+                .catch(error => console.error('❌ Error loading sensors:', error));
+            
+            fetch('/api/alerts')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateAlerts(data.data);
+                    }
+                })
+                .catch(error => console.error('❌ Error loading alerts:', error));
+        }
+        
+        // Render sensors
+        function renderSensors(sensors) {
+            const container = document.getElementById('sensorsContainer');
+            container.innerHTML = '';
+            
+            sensors.forEach((sensor, index) => {
+                const sensorCard = createSensorCard(sensor, index);
+                container.appendChild(sensorCard);
+            });
+        }
+        
+        // Create sensor card
+        function createSensorCard(sensor, index) {
+            const col = document.createElement('div');
+            col.className = 'col-lg-3 col-md-6 mb-4';
+            
+            const latestData = sensor.latest_data;
+            const hasData = latestData && latestData.data;
+            
+            col.innerHTML = `
+                <div class="sensor-card" data-sensor-id="${sensor.sensor_id}">
+                    <div class="sensor-header">
+                        <i class="fas fa-microchip me-2"></i>
+                        ${sensor.name}
+                    </div>
+                    <div class="card-body p-0">
+                        ${hasData ? `
+                            <div class="metric-item">
+                                <div class="metric-icon">
+                                    <i class="fas fa-thermometer-half"></i>
+                                </div>
+                                <div class="metric-info">
+                                    <div class="metric-label">Temperature</div>
+                                    <div class="metric-value" id="temp-${sensor.sensor_id}">
+                                        ${latestData.data.temperature}°C
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-icon">
+                                    <i class="fas fa-tint"></i>
+                                </div>
+                                <div class="metric-info">
+                                    <div class="metric-label">Humidity</div>
+                                    <div class="metric-value" id="humidity-${sensor.sensor_id}">
+                                        ${latestData.data.humidity}%
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-icon">
+                                    <i class="fas fa-lungs"></i>
+                                </div>
+                                <div class="metric-info">
+                                    <div class="metric-label">CO₂</div>
+                                    <div class="metric-value" id="co2-${sensor.sensor_id}">
+                                        ${latestData.data.co2} ppm
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-icon">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div class="metric-info">
+                                    <div class="metric-label">Occupancy</div>
+                                    <div class="metric-value" id="occupancy-${sensor.sensor_id}">
+                                        ${latestData.data.occupancy} people
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="d-flex justify-content-between align-items-center w-100">
+                                    <span class="metric-label">System Status</span>
+                                    <span class="status-badge status-${latestData.system_status.toLowerCase()}" 
+                                          id="status-${sensor.sensor_id}">
+                                        ${getStatusText(latestData.system_status)}
+                                    </span>
+                                </div>
+                            </div>
+                        ` : `
+                            <div class="text-center p-4">
+                                <i class="fas fa-exclamation-circle fa-2x mb-2" style="color: var(--accent-color);"></i>
+                                <div style="color: var(--text-muted);">No data available</div>
+                            </div>
+                        `}
+                    </div>
+                </div>
+            `;
+            
+            return col;
+        }
+        
+        // Render building map
+        function renderBuildingMap(sensors) {
+            const mapContainer = document.getElementById('buildingMap');
+            mapContainer.innerHTML = '';
+            
+            sensors.forEach((sensor, index) => {
+                const marker = document.createElement('div');
+                marker.className = 'sensor-marker';
+                marker.style.left = `${(sensor.coordinates.x / 40) * 100}%`;
+                marker.style.top = `${(sensor.coordinates.y / 25) * 100}%`;
+                marker.title = sensor.name;
+                marker.innerHTML = index + 1;
+                
+                marker.addEventListener('click', () => {
+                    scrollToSensor(sensor.sensor_id);
+                });
+                
+                mapContainer.appendChild(marker);
+            });
+        }
+        
+        // Scroll to sensor
+        function scrollToSensor(sensorId) {
+            const sensorCard = document.querySelector(`[data-sensor-id="${sensorId}"]`);
+            if (sensorCard) {
+                sensorCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                sensorCard.style.animation = 'pulse 2s ease-in-out';
+                setTimeout(() => sensorCard.style.animation = '', 2000);
+            }
+        }
+        
+        // Update sensor data
+        function updateSensorData(data) {
+            const sensorId = data.sensor_id;
+            const sensorData = data.data;
+            
+            // Store data for charts
+            if (!sensorsData[sensorId]) {
+                sensorsData[sensorId] = [];
+            }
+            sensorsData[sensorId].push({
+                timestamp: new Date(data.timestamp),
+                temperature: sensorData.data.temperature,
+                humidity: sensorData.data.humidity,
+                co2: sensorData.data.co2
+            });
+            
+            // Keep only last 50 points
+            if (sensorsData[sensorId].length > 50) {
+                sensorsData[sensorId] = sensorsData[sensorId].slice(-50);
+            }
+            
+            // Update card values
+            updateSensorCard(sensorId, sensorData);
+        }
+        
+        // Update sensor card
+        function updateSensorCard(sensorId, sensorData) {
+            const tempElement = document.getElementById(`temp-${sensorId}`);
+            const humidityElement = document.getElementById(`humidity-${sensorId}`);
+            const co2Element = document.getElementById(`co2-${sensorId}`);
+            const occupancyElement = document.getElementById(`occupancy-${sensorId}`);
+            const statusElement = document.getElementById(`status-${sensorId}`);
+            
+            if (tempElement) tempElement.textContent = `${sensorData.data.temperature}°C`;
+            if (humidityElement) humidityElement.textContent = `${sensorData.data.humidity}%`;
+            if (co2Element) co2Element.textContent = `${sensorData.data.co2} ppm`;
+            if (occupancyElement) occupancyElement.textContent = `${sensorData.data.occupancy} people`;
+            
+            if (statusElement) {
+                const status = sensorData.system_status;
+                statusElement.textContent = getStatusText(status);
+                statusElement.className = `status-badge status-${status.toLowerCase()}`;
+            }
+        }
+        
+        // Get status text
+        function getStatusText(status) {
+            const statusTexts = {
+                'NORMAL': 'Normal',
+                'WARNING': 'Warning',
+                'CRITICAL': 'Critical',
+                'MALFUNCTION': 'Error'
+            };
+            return statusTexts[status] || status;
+        }
+        
+        // Initialize charts
+        function initializeCharts() {
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: colors.text
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: colors.text },
+                        grid: { color: 'rgba(0,212,255,0.1)' }
+                    },
+                    y: {
+                        ticks: { color: colors.text },
+                        grid: { color: 'rgba(0,212,255,0.1)' }
+                    }
+                }
+            };
+            
+            // Temperature Chart
+            const tempCtx = document.getElementById('temperatureChart').getContext('2d');
+            temperatureChart = new Chart(tempCtx, {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: {
+                    ...chartOptions,
+                    scales: {
+                        ...chartOptions.scales,
+                        y: {
+                            ...chartOptions.scales.y,
+                            title: { display: true, text: 'Temperature (°C)', color: colors.text }
+                        }
+                    }
+                }
+            });
+            
+            // Humidity & CO2 Chart
+            const humidityCtx = document.getElementById('humidityCoChart').getContext('2d');
+            humidityCoChart = new Chart(humidityCtx, {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: {
+                    ...chartOptions,
+                    scales: {
+                        x: chartOptions.scales.x,
+                        y: {
+                            ...chartOptions.scales.y,
+                            position: 'left',
+                            title: { display: true, text: 'Humidity (%)', color: colors.text }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: 'CO₂ (ppm)', color: colors.text },
+                            ticks: { color: colors.text },
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update charts
+        function updateCharts() {
+            if (Object.keys(sensorsData).length === 0) return;
+            
+            // Get timestamps
+            const allTimestamps = Object.values(sensorsData)
+                .flat()
+                .map(d => d.timestamp)
+                .sort((a, b) => a - b);
+            
+            const uniqueTimestamps = [...new Set(allTimestamps.map(t => t.getTime()))]
+                .map(t => new Date(t))
+                .slice(-20);
+            
+            const labels = uniqueTimestamps.map(t => 
+                t.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            );
+            
+            // Update temperature chart
+            const tempDatasets = Object.keys(sensorsData).map((sensorId, index) => {
+                const data = sensorsData[sensorId]
+                    .filter(d => uniqueTimestamps.some(t => t.getTime() === d.timestamp.getTime()))
+                    .map(d => d.temperature);
+                
+                return {
+                    label: getSensorName(sensorId),
+                    data: data,
+                    borderColor: sensorColors[index % sensorColors.length],
+                    backgroundColor: sensorColors[index % sensorColors.length] + '20',
+                    tension: 0.4,
+                    fill: false,
+                    pointRadius: 3,
+                    pointHoverRadius: 6
+                };
+            });
+            
+            temperatureChart.data.labels = labels;
+            temperatureChart.data.datasets = tempDatasets;
+            temperatureChart.update('none');
+            
+            // Update humidity & CO2 chart
+            const humidityDatasets = [];
+            const co2Datasets = [];
+            
+            Object.keys(sensorsData).forEach((sensorId, index) => {
+                const sensorDataPoints = sensorsData[sensorId]
+                    .filter(d => uniqueTimestamps.some(t => t.getTime() === d.timestamp.getTime()));
+                
+                const humidityData = sensorDataPoints.map(d => d.humidity);
+                const co2Data = sensorDataPoints.map(d => d.co2);
+                
+                humidityDatasets.push({
+                    label: `${getSensorName(sensorId)} - Humidity`,
+                    data: humidityData,
+                    borderColor: sensorColors[index % sensorColors.length],
+                    backgroundColor: sensorColors[index % sensorColors.length] + '20',
+                    yAxisID: 'y',
+                    tension: 0.4,
+                    fill: false,
+                    pointRadius: 3
+                });
+                
+                co2Datasets.push({
+                    label: `${getSensorName(sensorId)} - CO₂`,
+                    data: co2Data,
+                    borderColor: sensorColors[index % sensorColors.length],
+                    backgroundColor: sensorColors[index % sensorColors.length] + '40',
+                    yAxisID: 'y1',
+                    tension: 0.4,
+                    fill: false,
+                    borderDash: [5, 5],
+                    pointRadius: 3
+                });
+            });
+            
+            humidityCoChart.data.labels = labels;
+            humidityCoChart.data.datasets = [...humidityDatasets, ...co2Datasets];
+            humidityCoChart.update('none');
+        }
+        
+        // Get sensor name
+        function getSensorName(sensorId) {
+            const sensorNames = {
+                'hvac_office_a1': 'Office A1',
+                'hvac_office_a2': 'Office A2',
+                'hvac_meeting_room': 'Meeting Room',
+                'hvac_main_corridor': 'Corridor',
+                'hvac_kitchen': 'Kitchen',
+                'hvac_reception': 'Reception',
+                'hvac_restroom': 'Restroom'
+            };
+            return sensorNames[sensorId] || sensorId;
+        }
+        
+        // Update system status
+        function updateSystemStatus(status) {
+            const statusElement = document.getElementById('systemStatus');
+            const statusConfigs = {
+                'NORMAL': { 
+                    text: 'All Systems Operating Normally', 
+                    class: 'system-status status-normal', 
+                    icon: 'fa-check-circle' 
+                },
+                'WARNING': { 
+                    text: 'Minor Issues Detected', 
+                    class: 'system-status status-warning', 
+                    icon: 'fa-exclamation-triangle' 
+                },
+                'CRITICAL': { 
+                    text: 'Critical Issues Require Attention', 
+                    class: 'system-status status-critical', 
+                    icon: 'fa-exclamation-circle' 
+                },
+                'MALFUNCTION': { 
+                    text: 'System Malfunction - Intervention Required', 
+                    class: 'system-status status-critical', 
+                    icon: 'fa-tools' 
+                }
+            };
+            
+            const config = statusConfigs[status] || statusConfigs['NORMAL'];
+            statusElement.className = config.class;
+            statusElement.innerHTML = `<i class="fas ${config.icon} me-2"></i>${config.text}`;
+        }
+        
+        // Update alerts
+        function updateAlerts(alerts) {
+            const container = document.getElementById('alertsContainer');
+            const alertsCount = document.getElementById('alertsCount');
+            
+            alertsCount.textContent = alerts.length;
+            
+            if (alerts.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center p-4" style="color: var(--text-muted);">
+                        <i class="fas fa-shield-check fa-3x mb-3" style="color: var(--accent-color);"></i>
+                        <h5>No Active Alerts</h5>
+                        <p>All systems are operating normally</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = '';
+            alerts.slice(0, 5).forEach(alert => {
+                const alertCard = createAlertCard(alert);
+                container.appendChild(alertCard);
+            });
+            
+            if (alerts.length > 5) {
+                const moreAlertsDiv = document.createElement('div');
+                moreAlertsDiv.className = 'text-center mt-3';
+                moreAlertsDiv.innerHTML = `
+                    <a href="/alerts" class="btn-smart">
+                        <i class="fas fa-eye me-2"></i>
+                        View All Alerts (${alerts.length})
+                    </a>
+                `;
+                container.appendChild(moreAlertsDiv);
+            }
+        }
+        
+        // Create alert card
+        function createAlertCard(alert) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert-card alert-${alert.severity.toLowerCase()}`;
+            
+            const timeAgo = getTimeAgo(new Date(alert.timestamp));
+            
+            alertDiv.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="badge" style="background: var(--gradient-accent); color: var(--primary-color);">
+                                ${getSeverityText(alert.severity)}
+                            </span>
+                            <small class="ms-2" style="color: var(--text-muted);">${timeAgo}</small>
+                        </div>
+                        <h6 class="mb-1" style="color: var(--text-primary);">${getSensorName(alert.sensor_id)}</h6>
+                        <p class="mb-1" style="color: var(--text-secondary);">${alert.message}</p>
+                        ${alert.recommended_action ? `
+                            <small style="color: var(--accent-color);">
+                                <i class="fas fa-lightbulb me-1"></i>
+                                ${alert.recommended_action}
+                            </small>
+                        ` : ''}
+                    </div>
+                    <div class="d-flex flex-column">
+                        <button class="btn-outline-smart btn-sm mb-1" 
+                                onclick="acknowledgeAlert('${alert.alert_id}')" 
+                                title="Acknowledge Alert">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        <button class="btn-outline-smart btn-sm" 
+                                onclick="resolveAlert('${alert.alert_id}')" 
+                                title="Resolve Alert">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            return alertDiv;
+        }
+        
+        // Add new alert
+        function addNewAlert(alert) {
+            const container = document.getElementById('alertsContainer');
+            const alertCard = createAlertCard(alert);
+            
+            container.insertBefore(alertCard, container.firstChild);
+            
+            const alertsCount = document.getElementById('alertsCount');
+            alertsCount.textContent = parseInt(alertsCount.textContent) + 1;
+            
+            // Animation
+            alertCard.style.opacity = '0';
+            alertCard.style.transform = 'translateX(-20px)';
+            setTimeout(() => {
+                alertCard.style.transition = 'all 0.3s ease';
+                alertCard.style.opacity = '1';
+                alertCard.style.transform = 'translateX(0)';
+            }, 100);
+        }
+        
+        // Acknowledge alert
+        function acknowledgeAlert(alertId) {
+            fetch(`/api/alerts/${alertId}/acknowledge`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification('Alert acknowledged successfully', 'success');
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error acknowledging alert:', error);
+                    showNotification('Error acknowledging alert', 'error');
+                });
+        }
+        
+        // Resolve alert
+        function resolveAlert(alertId) {
+            fetch(`/api/alerts/${alertId}/resolve`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const alertElement = document.querySelector(`[onclick="resolveAlert('${alertId}')"]`).closest('.alert-card');
+                        alertElement.style.transition = 'all 0.3s ease';
+                        alertElement.style.opacity = '0';
+                        alertElement.style.transform = 'translateX(20px)';
+                        setTimeout(() => alertElement.remove(), 300);
+                        
+                        const alertsCount = document.getElementById('alertsCount');
+                        alertsCount.textContent = Math.max(0, parseInt(alertsCount.textContent) - 1);
+                        
+                        showNotification('Alert resolved successfully', 'success');
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error resolving alert:', error);
+                    showNotification('Error resolving alert', 'error');
+                });
+        }
+        
+        // Utility functions
+        function getSeverityText(severity) {
+            const texts = {
+                'LOW': 'Low',
+                'MEDIUM': 'Medium',
+                'HIGH': 'High', 
+                'CRITICAL': 'Critical'
+            };
+            return texts[severity] || severity;
+        }
+        
+        function getTimeAgo(date) {
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMins / 60);
+            const diffDays = Math.floor(diffHours / 24);
+            
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            if (diffHours < 24) return `${diffHours}h ago`;
+            return `${diffDays}d ago`;
+        }
+        
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = 'position-fixed';
+            notification.style.cssText = `
+                top: 80px; right: 20px; z-index: 9999; min-width: 300px;
+                background: var(--gradient-card);
+                border: 1px solid var(--accent-color);
+                border-radius: var(--border-radius);
+                padding: 1rem;
+                color: var(--text-primary);
+                backdrop-filter: blur(10px);
+                box-shadow: var(--shadow-md);
+            `;
+            
+            notification.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check' : 'exclamation-triangle'} me-2" 
+                   style="color: var(--accent-color);"></i>
+                ${message}
+                <button type="button" class="btn-close ms-auto" style="color: var(--accent-color);" 
+                        onclick="this.parentElement.remove()"></button>
+            `;
+            
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 3000);
+        }
+        
+        // Export data
+        function exportData() {
+            const hours = prompt('Export data for how many hours? (default: 24)', '24');
+            if (hours) {
+                window.open(`/api/export/csv?hours=${hours}`, '_blank');
+                showNotification('Data is being exported...', 'success');
+            }
+        }
+        
+        // Auto-reconnect if disconnected
+        setInterval(() => {
+            if (!isConnected) {
+                console.log('🔄 Attempting to reconnect...');
+                loadInitialData();
+            }
+        }, 30000);
+    </script>
+</body>
+</html>

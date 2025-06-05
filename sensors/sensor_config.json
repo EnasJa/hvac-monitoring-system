@@ -1,0 +1,339 @@
+{
+  "sensors": {
+    "office_a1": {
+      "id": "hvac_office_a1",
+      "name": "Office A1",
+      "description": "Main office floor 1",
+      "location": {
+        "building": "Main Building",
+        "floor": 1,
+        "zone": "A",
+        "coordinates": {
+          "x": 10,
+          "y": 10
+        }
+      },
+      "capacity": 4,
+      "sensor_types": ["temperature", "humidity", "co2", "occupancy"],
+      "thresholds": {
+        "temperature": {
+          "min": 18.0,
+          "max": 26.0,
+          "critical_min": 15.0,
+          "critical_max": 30.0
+        },
+        "humidity": {
+          "min": 30.0,
+          "max": 60.0,
+          "critical_min": 20.0,
+          "critical_max": 80.0
+        },
+        "co2": {
+          "max": 1000,
+          "critical_max": 1500
+        }
+      },
+      "calibration": {
+        "temperature_offset": 0.0,
+        "humidity_offset": 0.0,
+        "co2_offset": 0
+      },
+      "maintenance": {
+        "last_service": "2024-01-15",
+        "next_service": "2024-07-15",
+        "service_interval_months": 6
+      }
+    },
+    "office_a2": {
+      "id": "hvac_office_a2",
+      "name": "Office A2",
+      "description": "Secondary office floor 1",
+      "location": {
+        "building": "Main Building",
+        "floor": 1,
+        "zone": "A",
+        "coordinates": {
+          "x": 20,
+          "y": 10
+        }
+      },
+      "capacity": 4,
+      "sensor_types": ["temperature", "humidity", "co2", "occupancy"],
+      "thresholds": {
+        "temperature": {
+          "min": 18.0,
+          "max": 26.0,
+          "critical_min": 15.0,
+          "critical_max": 30.0
+        },
+        "humidity": {
+          "min": 30.0,
+          "max": 60.0,
+          "critical_min": 20.0,
+          "critical_max": 80.0
+        },
+        "co2": {
+          "max": 1000,
+          "critical_max": 1500
+        }
+      },
+      "calibration": {
+        "temperature_offset": 0.0,
+        "humidity_offset": 0.0,
+        "co2_offset": 0
+      },
+      "maintenance": {
+        "last_service": "2024-01-15",
+        "next_service": "2024-07-15",
+        "service_interval_months": 6
+      }
+    },
+    "meeting_room": {
+      "id": "hvac_meeting_room",
+      "name": "Meeting Room",
+      "description": "Main conference room",
+      "location": {
+        "building": "Main Building",
+        "floor": 1,
+        "zone": "B",
+        "coordinates": {
+          "x": 30,
+          "y": 10
+        }
+      },
+      "capacity": 12,
+      "sensor_types": ["temperature", "humidity", "co2", "occupancy"],
+      "thresholds": {
+        "temperature": {
+          "min": 20.0,
+          "max": 24.0,
+          "critical_min": 15.0,
+          "critical_max": 28.0
+        },
+        "humidity": {
+          "min": 35.0,
+          "max": 55.0,
+          "critical_min": 25.0,
+          "critical_max": 75.0
+        },
+        "co2": {
+          "max": 800,
+          "critical_max": 1200
+        }
+      },
+      "calibration": {
+        "temperature_offset": 0.0,
+        "humidity_offset": 0.0,
+        "co2_offset": 0
+      },
+      "maintenance": {
+        "last_service": "2024-02-01",
+        "next_service": "2024-08-01",
+        "service_interval_months": 6
+      }
+    },
+    "main_corridor": {
+      "id": "hvac_main_corridor",
+      "name": "Main Corridor",
+      "description": "Central hallway",
+      "location": {
+        "building": "Main Building",
+        "floor": 1,
+        "zone": "Central",
+        "coordinates": {
+          "x": 15,
+          "y": 20
+        }
+      },
+      "capacity": 0,
+      "sensor_types": ["temperature", "humidity", "co2"],
+      "thresholds": {
+        "temperature": {
+          "min": 16.0,
+          "max": 28.0,
+          "critical_min": 10.0,
+          "critical_max": 35.0
+        },
+        "humidity": {
+          "min": 25.0,
+          "max": 70.0,
+          "critical_min": 15.0,
+          "critical_max": 85.0
+        },
+        "co2": {
+          "max": 1200,
+          "critical_max": 1800
+        }
+      },
+      "calibration": {
+        "temperature_offset": 0.0,
+        "humidity_offset": 0.0,
+        "co2_offset": 0
+      },
+      "maintenance": {
+        "last_service": "2024-01-20",
+        "next_service": "2024-07-20",
+        "service_interval_months": 6
+      }
+    },
+    "kitchen": {
+      "id": "hvac_kitchen",
+      "name": "Kitchen",
+      "description": "Employee kitchen",
+      "location": {
+        "building": "Main Building",
+        "floor": 1,
+        "zone": "C",
+        "coordinates": {
+          "x": 5,
+          "y": 20
+        }
+      },
+      "capacity": 6,
+      "sensor_types": ["temperature", "humidity", "co2", "occupancy"],
+      "thresholds": {
+        "temperature": {
+          "min": 18.0,
+          "max": 28.0,
+          "critical_min": 15.0,
+          "critical_max": 35.0
+        },
+        "humidity": {
+          "min": 30.0,
+          "max": 70.0,
+          "critical_min": 20.0,
+          "critical_max": 85.0
+        },
+        "co2": {
+          "max": 1200,
+          "critical_max": 1800
+        }
+      },
+      "calibration": {
+        "temperature_offset": 0.0,
+        "humidity_offset": 0.0,
+        "co2_offset": 0
+      },
+      "maintenance": {
+        "last_service": "2024-01-10",
+        "next_service": "2024-07-10",
+        "service_interval_months": 6
+      }
+    },
+    "reception": {
+      "id": "hvac_reception",
+      "name": "Reception",
+      "description": "Reception area",
+      "location": {
+        "building": "Main Building",
+        "floor": 1,
+        "zone": "Entrance",
+        "coordinates": {
+          "x": 25,
+          "y": 5
+        }
+      },
+      "capacity": 8,
+      "sensor_types": ["temperature", "humidity", "co2", "occupancy"],
+      "thresholds": {
+        "temperature": {
+          "min": 20.0,
+          "max": 25.0,
+          "critical_min": 16.0,
+          "critical_max": 29.0
+        },
+        "humidity": {
+          "min": 35.0,
+          "max": 60.0,
+          "critical_min": 25.0,
+          "critical_max": 75.0
+        },
+        "co2": {
+          "max": 900,
+          "critical_max": 1300
+        }
+      },
+      "calibration": {
+        "temperature_offset": 0.0,
+        "humidity_offset": 0.0,
+        "co2_offset": 0
+      },
+      "maintenance": {
+        "last_service": "2024-02-05",
+        "next_service": "2024-08-05",
+        "service_interval_months": 6
+      }
+    },
+    "restroom": {
+      "id": "hvac_restroom",
+      "name": "Restroom",
+      "description": "Public restroom",
+      "location": {
+        "building": "Main Building",
+        "floor": 1,
+        "zone": "Utilities",
+        "coordinates": {
+          "x": 35,
+          "y": 20
+        }
+      },
+      "capacity": 0,
+      "sensor_types": ["temperature", "humidity", "co2"],
+      "thresholds": {
+        "temperature": {
+          "min": 16.0,
+          "max": 28.0,
+          "critical_min": 12.0,
+          "critical_max": 35.0
+        },
+        "humidity": {
+          "min": 30.0,
+          "max": 75.0,
+          "critical_min": 20.0,
+          "critical_max": 90.0
+        },
+        "co2": {
+          "max": 1500,
+          "critical_max": 2000
+        }
+      },
+      "calibration": {
+        "temperature_offset": 0.0,
+        "humidity_offset": 0.0,
+        "co2_offset": 0
+      },
+      "maintenance": {
+        "last_service": "2024-01-25",
+        "next_service": "2024-07-25",
+        "service_interval_months": 6
+      }
+    }
+  },
+  "global_settings": {
+    "data_collection_interval": 5,
+    "anomaly_detection": {
+      "enabled": true,
+      "window_size": 50,
+      "std_threshold": 2.5,
+      "min_samples": 10
+    },
+    "mqtt": {
+      "broker": "localhost",
+      "port": 1883,
+      "topics": {
+        "sensor_data": "hvac/sensors/{sensor_id}/data",
+        "alerts": "hvac/alerts",
+        "system_status": "hvac/system/status"
+      }
+    },
+    "alerts": {
+      "cooldown_minutes": 5,
+      "escalation_minutes": 30,
+      "auto_resolve_hours": 24
+    },
+    "maintenance": {
+      "reminder_days_before": 30,
+      "overdue_alert_days": 7
+    }
+  }
+}
